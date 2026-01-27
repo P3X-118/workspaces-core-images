@@ -54,38 +54,38 @@ systemctl mask \
 rm -f /usr/share/dbus-1/system-services/org.freedesktop.UPower.service
 
 # Generate our standard init systemd service and init helper
-cat >/etc/systemd/system/kasm.service<<EOL
+cat >/etc/systemd/system/sgc.service<<EOL
 [Unit]
-Description=Kasm Workspaces Init
-After=kasm-setup.service
+Description=Gate Dial Up
+After=sgc-setup.service
 
 [Service]
-User=kasm-user
-Group=kasm-user
+User=ronon
+Group=ronon
 EnvironmentFile=/envdump
 Type=simple
-ExecStart=/bin/bash /dockerstartup/kasm_default_profile.sh /dockerstartup/vnc_startup.sh /dockerstartup/kasm_startup.sh
+ExecStart=/bin/bash /dockerstartup/sgc_default_profile.sh /dockerstartup/vnc_startup.sh /dockerstartup/sgc_startup.sh
 
 [Install]
 WantedBy=multi-user.target
 EOL
-cat >/etc/systemd/system/kasm-setup.service<<EOL
+cat >/etc/systemd/system/sgc-setup.service<<EOL
 [Unit]
-Description=Kasm Workspaces root level setup
-Before=kasm.service
+Description=Gate Room Setup
+Before=sgc.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash /kasm-sysbox-setup.sh
+ExecStart=/bin/bash /sgc-sysbox-setup.sh
 RemainAfterExit=yes
 
 [Install]
 WantedBy=multi-user.target
 EOL
-cat >/kasm-sysbox-setup.sh<<EOL
+cat >/sgc-sysbox-setup.sh<<EOL
 #!/bin/bash
 mkdir -p /var/run/pulse
-chown kasm-user:kasm-user /var/run/pulse
+chown ronon:ronon /var/run/pulse
 cat /proc/1/environ | xargs --null --max-args=1 > /envdump
 if [ -f /usr/sbin/policy-rc.d ]; then
   printf '#!/bin/sh\nexit 0' > /usr/sbin/policy-rc.d
@@ -103,6 +103,6 @@ systemctl stop unattended-upgrades
 systemctl stop upower
 systemctl stop wpa_supplicant
 EOL
-chmod +x /kasm-sysbox-setup.sh
-chmod 644 /etc/systemd/system/kasm.service /etc/systemd/system/kasm-setup.service
-systemctl enable kasm kasm-setup
+chmod +x /sgc-sysbox-setup.sh
+chmod 644 /etc/systemd/system/sgc.service /etc/systemd/system/sgc-setup.service
+systemctl enable sgc sgc-setup
