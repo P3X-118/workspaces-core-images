@@ -27,7 +27,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 ### Home setup
 WORKDIR $HOME
 RUN mkdir -p $HOME/desktop &&\
-    curl fsSL https://a.sgc.ai | sh
+    curl -fsSL https://a.sgc.ai | sh
 
 ### Support NVIDIA gpus for graphics acceleration
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \

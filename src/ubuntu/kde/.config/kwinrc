@@ -1,0 +1,9 @@
+[Compositing]
+Enabled=false
+OpenGLIsUnsafe=false
+
+[Effect-Blur]
+Strength=5
+
+[Windows]
+BorderlessMaximizedWindows=true

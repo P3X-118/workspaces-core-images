@@ -1,0 +1,18 @@
+[KDE]
+LookAndFeelPackage=org.kde.breezedark.desktop
+SingleClick=false
+ShowDeleteCommand=true
+
+[KDE Action Restrictions]
+action/lock_screen=false
+action/logout=false
+action/shutdown=false
+action/restart=false
+
+[WM]
+activeBackground=49,54,59
+activeBlend=255,255,255
+activeForeground=255,255,255
+inactiveBackground=49,54,59
+inactiveBlend=75,71,67
+inactiveForeground=20,19,18

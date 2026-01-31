@@ -1,0 +1,6 @@
+[Basic Settings]
+Indexing-Enabled=false
+
+[File Indexing]
+Basic Indexing Root=$HOME
+Folders[$HOME]=disabled

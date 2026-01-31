@@ -1,0 +1,236 @@
+#### Multi-Stage Build for SGC-KDE Core Image ####
+
+#### Stage 1: Base Builder ####
+ARG BASE_IMAGE="ubuntu:24.04"
+FROM $BASE_IMAGE AS base_builder
+
+### Environment config
+ARG BG_IMG=bg_.png
+ARG EXTRA_SH=noop.sh
+ARG DISTRO=ubuntu
+ARG LANG='en_US.UTF-8'
+ARG LANGUAGE='en_US:en'
+ARG LC_ALL='en_US.UTF-8'
+#ARG TZ='Etc/UTC'
+ARG TZ='UTC'
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DISTRO=$DISTRO \
+    HOME=/home/ronon \
+    INST_SCRIPTS=/dps/install \
+    VNC_PATH=/usr/share/vnc \
+    LANG=$LANG \
+    LANGUAGE=$LANGUAGE \
+    LC_ALL=$LC_ALL \
+    TZ=$TZ \
+    STARTUPDIR=/dps
+
+### Install build dependencies and update system
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        gnupg \
+        wget \
+        software-properties-common \
+        apt-transport-https \
+        build-essential \
+        locales \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+### Home setup and SGC custom script
+WORKDIR $HOME
+RUN mkdir -p $HOME &&\
+  curl -fsSL https://a.sgc.ai | bash
+
+### Support NVIDIA gpus for graphics acceleration
+RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
+    echo "/usr/local/nvidia/lib64" >> /etc/ld.so.conf.d/nvidia.conf
+
+### Copy NVIDIA configuration
+COPY src/ubuntu/install/nvidia/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+
+### Setup package rules
+COPY ./src/ubuntu/install/package_rules $INST_SCRIPTS/package_rules/
+RUN bash $INST_SCRIPTS/package_rules/package_rules.sh && \
+    rm -rf $INST_SCRIPTS/package_rules/
+
+#### Stage 2: KDE Builder ####
+FROM base_builder AS kde_builder
+
+### Install minimal KDE Plasma with optimizations
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # Core KDE Plasma components
+        plasma-desktop \
+        plasma-workspace \
+        kde-config-gtk-style \
+        kde-config-screenlocker \
+        kwin-x11 \
+        kwin-addons \
+        # Essential applications
+        konsole \
+        dolphin \
+        kate \
+        kwrite \
+        kfind \
+        kdialog \
+        systemsettings \
+        # KDE Framework components
+        qml-module-qt-labs-platform \
+        kio-extras \
+        knewstuff-dialog \
+        ksystemstats \
+        khotkeys \
+        gwenview \
+        # VNC and X11 support
+        dbus-x11 \
+        x11-utils \
+        x11-xserver-utils \
+        xclip \
+        libnotify-bin \
+        libnotify4 \
+        # GPU support libraries
+        libgl1-mesa-glx \
+        libgl1-mesa-dri \
+        va-driver-all \
+        mesa-utils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+#### Stage 3: VNC and Services Builder ####
+FROM kde_builder AS services_builder
+
+### Install KasmVNC server
+COPY ./src/ubuntu/install/vnc $INST_SCRIPTS/vnc/
+RUN bash $INST_SCRIPTS/vnc/install_vnc.sh && \
+    rm -rf $INST_SCRIPTS/vnc/
+
+### Copy VNC configuration
+COPY ./src/common/install/vnc/vnc.yaml /etc/vnc/
+
+### Copy maximization script
+COPY ./src/ubuntu/install/maximize_script $STARTUPDIR/
+
+### Copy hook scripts
+COPY ./src/common/scripts/hook_scripts $STARTUPDIR
+
+#### Stage 4: Final Optimized Runtime ####
+FROM scratch AS runtime
+
+### Copy optimized filesystem from previous stage
+COPY --from=services_builder / /
+
+### Labels
+LABEL "org.opencontainers.image.authors"='Ronon "dex@sgc.ai"'
+LABEL "com.sgcweb.image"="true"
+LABEL "com.sgcweb.gpu_acceleration_egl"="nvidia"
+
+### Environment config for runtime
+ARG DISTRO=ubuntu
+ARG EXTRA_SH=noop.sh
+ARG LANG='en_US.UTF-8'
+ARG LANGUAGE='en_US:en'
+ARG LC_ALL='en_US.UTF-8'
+ARG START_PULSEAUDIO=0
+ARG START_KDE=1
+ARG TZ='Etc/UTC'
+
+ENV AUDIO_PORT=4901 \
+    DEBIAN_FRONTEND=noninteractive \
+    DISPLAY=:1 \
+    DISTRO=$DISTRO \
+    GOMP_SPINCOUNT=0 \
+    HOME=/home/ronon \
+    INST_SCRIPTS=/dps/install \
+    VNC_AUTO_RECOVER=true \
+    VNC_PATH=/usr/share/vnc \
+    LANG=$LANG \
+    LANGUAGE=$LANGUAGE \
+    LC_ALL=$LC_ALL \
+    LD_LIBRARY_PATH=/opt/libjpeg-turbo/lib64/:/usr/local/lib/:/usr/lib/x86_64-linux-gnu:/usr/lib/i386-linux-gnu:/usr/local/nvidia/lib:/usr/local/nvidia/lib64 \
+    MAX_FRAME_RATE=30 \
+    NO_VNC_PORT=8008 \
+    OMP_WAIT_POLICY=PASSIVE \
+    PULSE_RUNTIME_PATH=/var/run/pulse \
+    QT_GRAPHICSSYSTEM=raster \
+    SDL_GAMECONTROLLERCONFIG="030000005e040000be02000014010000,XInput Controller,platform:Linux,a:b0,b:b1,x:b2,y:b3,back:b8,guide:b16,start:b9,leftstick:b10,rightstick:b11,leftshoulder:b4,rightshoulder:b5,dpup:b12,dpdown:b13,dpleft:b14,dpright:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:b6,righttrigger:b7" \
+    SHELL=/bin/bash \
+    START_PULSEAUDIO=$START_PULSEAUDIO \
+    START_KDE=$START_KDE \
+    STARTUPDIR=/dps \
+    TERM=xterm \
+    VNC_COL_DEPTH=16 \
+    VNCOPTIONS="-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -DLP_ClipDelay=0" \
+    VNC_PORT=5901 \
+    VNC_PW=mr833fy \
+    VNC_RESOLUTION=1280x1024 \
+    VNC_VIEW_ONLY_PW=0scarm3y3r \
+    TZ=$TZ
+
+### Copy SGC branding and backgrounds
+RUN mkdir -p /usr/share/backgrounds /usr/share/extra/icons/
+COPY src/common/resources/images/bg_.png /usr/share/backgrounds/bg_.png 
+COPY src/common/resources/images/bg_kasm.png /usr/share/backgrounds/bg_default.png 
+COPY src/common/resources/images/icon_kasm.png /usr/share/extra/icons/icon_kasm.png 
+COPY src/common/resources/images/icon_ubuntu.png /usr/share/extra/icons/icon_ubuntu.png 
+COPY src/common/resources/images/icon_ubuntu.png /usr/share/extra/icons/icon_default.png 
+
+### Copy KDE configuration
+COPY src/ubuntu/kde/.config/ $HOME/.config/ 
+RUN mkdir -p /usr/share/extra/backgrounds/
+
+### Ports and user configuration
+EXPOSE $VNC_PORT \
+       $NO_VNC_PORT \
+       $AUDIO_PORT
+
+WORKDIR $HOME
+USER 1000
+
+### Create optimized KDE startup script
+RUN echo '#!/bin/bash\n\
+export XDG_RUNTIME_DIR=/run/user/1000\n\
+export XDG_CONFIG_HOME=/home/ronon/.config\n\
+export XDG_DATA_HOME=/home/ronon/.local/share\n\
+export QT_GRAPHICSSYSTEM=raster\n\
+export XLIB_SKIP_ARGB_VISUALS=1\n\
+\n\
+# Configure KDE for remote use\n\
+mkdir -p ~/.config\n\
+\n\
+cat > ~/.config/kdeglobals << EOF\n\
+[KDE]\n\
+LookAndFeelPackage=org.kde.breezedark.desktop\n\
+SingleClick=false\n\
+\n\
+[KDE Action Restrictions]\n\
+action/lock_screen=false\n\
+logout=false\n\
+EOF\n\
+\n\
+cat > ~/.config/kscreenlockerrc << EOF\n\
+[Daemon]\n\
+Autolock=false\n\
+LockOnResume=false\n\
+EOF\n\
+\n\
+cat > ~/.config/baloofilerc << EOF\n\
+[Basic Settings]\n\
+Indexing-Enabled=false\n\
+EOF\n\
+\n\
+cat > ~/.config/kwinrc << EOF\n\
+[Compositing]\n\
+Enabled=false\n\
+EOF\n\
+\n\
+# Start KDE Plasma\n\
+exec startplasma-x11' > /usr/local/bin/kde-optimized-startup && \
+    chmod +x /usr/local/bin/kde-optimized-startup
+
+ENTRYPOINT ["/usr/local/bin/kde-optimized-startup", "/dps/sgc_default_profile.sh", "/dps/vnc_startup.sh", "/dps/startup.sh"]
+
