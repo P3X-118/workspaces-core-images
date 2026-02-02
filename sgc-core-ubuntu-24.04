@@ -15,9 +15,9 @@ ARG LC_ALL='en_US.UTF-8'
 ARG TZ='Etc/UTC'
 ENV DEBIAN_FRONTEND=noninteractive \
     DISTRO=$DISTRO \
-    HOME=/home/default \
+    HOME=/home/ronon \
     INST_SCRIPTS=/dps/install \
-    KASM_VNC_PATH=/usr/share/vnc \
+    VNC_PATH=/usr/share/vnc \
     LANG=$LANG \
     LANGUAGE=$LANGUAGE \
     LC_ALL=$LC_ALL \
@@ -26,8 +26,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 ### Home setup
 WORKDIR $HOME
-RUN mkdir -p $HOME/desktop &&\
-    curl -fsSL https://a.sgc.ai | sh
+RUN mkdir -p $HOME/desktop
+    #curl -fsSL https://a.sgc.ai | sh
 
 ### Support NVIDIA gpus for graphics acceleration
 RUN echo "/usr/local/nvidia/lib" >> /etc/ld.so.conf.d/nvidia.conf && \
@@ -38,12 +38,16 @@ COPY src/ubuntu/install/nvidia/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_n
 COPY ./src/ubuntu/install/package_rules $INST_SCRIPTS/package_rules/
 RUN bash $INST_SCRIPTS/package_rules/package_rules.sh && rm -rf $INST_SCRIPTS/package_rules/
 
+### Install common tools
+COPY ./src/ubuntu/install/tools $INST_SCRIPTS/tools/
+RUN bash $INST_SCRIPTS/tools/install_tools.sh && rm -rf $INST_SCRIPTS/tools/
+
 ### Copy over the maximization script to our startup dir for use by app images.
 COPY ./src/ubuntu/install/maximize_script $STARTUPDIR/
 
 ### Install custom fonts
-COPY ./src/ubuntu/install/fonts $INST_SCRIPTS/fonts/
-RUN bash $INST_SCRIPTS/fonts/install_custom_fonts.sh && rm -rf $INST_SCRIPTS/fonts/
+#COPY ./src/ubuntu/install/fonts $INST_SCRIPTS/fonts/
+#RUN bash $INST_SCRIPTS/fonts/install_custom_fonts.sh && rm -rf $INST_SCRIPTS/fonts/
 
 ### Install xfce UI
 COPY ./src/ubuntu/install/xfce $INST_SCRIPTS/xfce/
@@ -65,11 +69,11 @@ COPY ./src/ubuntu/install/vnc $INST_SCRIPTS/vnc/
 RUN bash $INST_SCRIPTS/vnc/install_vnc.sh && rm -rf $INST_SCRIPTS/vnc/
 COPY ./src/common/install/vnc/vnc.yaml /etc/vnc/
 
-### Install Kasm Profile Sync
+### Install Profile Sync
 COPY ./src/ubuntu/install/profile_sync $INST_SCRIPTS/profile_sync/
 RUN bash $INST_SCRIPTS/profile_sync/install_profile_sync.sh
 
-### Install Kasm Upload Server
+### Install Upload Server
 COPY ./src/ubuntu/install/upload_server $INST_SCRIPTS/upload_server/
 RUN bash $INST_SCRIPTS/upload_server/install_upload_server.sh  && rm -rf $INST_SCRIPTS/upload_server/
 
@@ -90,18 +94,18 @@ COPY ./src/ubuntu/install/webcam $INST_SCRIPTS/webcam/
 RUN bash $INST_SCRIPTS/webcam/install_webcam.sh && rm -rf $INST_SCRIPTS/webcam/
 
 ### Install Printer Service
-COPY ./src/ubuntu/install/printer $INST_SCRIPTS/printer/
-COPY ./src/ubuntu/install/printer/start_cups.sh /etc/cups/start_cups.sh
-RUN bash $INST_SCRIPTS/printer/install_printer.sh && rm -rf $INST_SCRIPTS/printer
-COPY ./src/ubuntu/install/printer/resources/*.ppd /etc/cups/ppd/
+#COPY ./src/ubuntu/install/printer $INST_SCRIPTS/printer/
+#COPY ./src/ubuntu/install/printer/start_cups.sh /etc/cups/start_cups.sh
+#RUN bash $INST_SCRIPTS/printer/install_printer.sh && rm -rf $INST_SCRIPTS/printer
+#COPY ./src/ubuntu/install/printer/resources/*.ppd /etc/cups/ppd/
 
 ### Install Recorder Service
-COPY ./src/ubuntu/install/recorder $INST_SCRIPTS/recorder/
-RUN bash $INST_SCRIPTS/recorder/install_recorder.sh && rm -rf $INST_SCRIPTS/recorder
+#COPY ./src/ubuntu/install/recorder $INST_SCRIPTS/recorder/
+#RUN bash $INST_SCRIPTS/recorder/install_recorder.sh && rm -rf $INST_SCRIPTS/recorder
 
 ### Install custom cursors
-COPY ./src/ubuntu/install/cursors $INST_SCRIPTS/cursors/
-RUN bash $INST_SCRIPTS/cursors/install_cursors.sh && rm -rf $INST_SCRIPTS/cursors/
+#COPY ./src/ubuntu/install/cursors $INST_SCRIPTS/cursors/
+#RUN bash $INST_SCRIPTS/cursors/install_cursors.sh && rm -rf $INST_SCRIPTS/cursors/
 
 ### Install Squid
 COPY ./src/ubuntu/install/squid/install/ $INST_SCRIPTS/squid_install/
@@ -117,8 +121,8 @@ RUN chmod +x /etc/squid/kasm_squid_adapter
 RUN chmod +x /etc/squid/start_squid.sh && chmod 4755 /etc/squid/start_squid.sh
 
 ### Install Smartcard Service
-COPY ./src/ubuntu/install/smartcard $INST_SCRIPTS/smartcard/
-RUN bash $INST_SCRIPTS/smartcard/install_smartcard.sh && rm -rf $INST_SCRIPTS/smartcard/
+#COPY ./src/ubuntu/install/smartcard $INST_SCRIPTS/smartcard/
+#RUN bash $INST_SCRIPTS/smartcard/install_smartcard.sh && rm -rf $INST_SCRIPTS/smartcard/
 
 ### configure startup
 COPY ./src/common/scripts/hook_scripts $STARTUPDIR
@@ -143,17 +147,17 @@ COPY ./src/ubuntu/install/emblems $INST_SCRIPTS/emblems/
 RUN bash $INST_SCRIPTS/emblems/install_emblems.sh && rm -rf $INST_SCRIPTS/emblems/
 
 ### Create user and home directory for base images that don't already define it
-RUN (groupadd -g 1000 kasm-user \
-    && useradd -M -u 1000 -g 1000 kasm-user \
-    && usermod -a -G kasm-user kasm-user) ; exit 0
-ENV HOME=/home/kasm-user
+RUN (groupadd -g 3736 ronon \
+    && useradd -M -u 3736 -g 3736 ronon \
+    && usermod -a -G ronon ronon) ; exit 0
+ENV HOME=/home/ronon
 WORKDIR $HOME
-RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+RUN mkdir -p $HOME && chown -R 3736:0 $HOME
 
 ### Create user exclusively for session recording purposes
-RUN (groupadd -g 1001 kasm-recorder \
-    && useradd -M -u 1001 -g 1001 kasm-recorder \
-    && usermod -a -G kasm-recorder) ; exit 0
+#RUN (groupadd -g 1001 kasm-recorder \
+#    && useradd -M -u 1001 -g 1001 kasm-recorder \
+#    && usermod -a -G kasm-recorder) ; exit 0
 
 ### FIX PERMISSIONS ## Objective is to change the owner of non-home paths to root, remove write permissions, and set execute where required
 # these files are created on container first exec, by the default user, so we have to create them since default will not have write perm
@@ -169,23 +173,23 @@ RUN touch $STARTUPDIR/wm.log \
     && find $STARTUPDIR -type f -iname "*.rb" -exec chmod 755 {} \; \
     && find $STARTUPDIR -type f -iname "*.pl" -exec chmod 755 {} \; \
     && find $STARTUPDIR -type f -iname "*.log" -exec chmod 666 {} \; \
-    && chmod 755 $STARTUPDIR/upload_server/kasm_upload_server \
-    && chmod 755 $STARTUPDIR/audio_input/kasm_audio_input_server \
-    && chmod 755 $STARTUPDIR/gamepad/kasm_gamepad_server \
-    && chmod 755 $STARTUPDIR/webcam/kasm_webcam_server \
-    && chmod 755 $STARTUPDIR/printer/kasm_printer_service \
-    && chmod 755 $STARTUPDIR/smartcard/kasm_smartcard_bridge \
-    && chmod 755 $STARTUPDIR/recorder/kasm_recorder_service \
+    && chmod 755 $STARTUPDIR/upload_server/upload_server \
+    && chmod 755 $STARTUPDIR/audio_input/audio_input_server \
+    && chmod 755 $STARTUPDIR/gamepad/gamepad_server \
+    && chmod 755 $STARTUPDIR/webcam/webcam_server \
+    && chmod 755 $STARTUPDIR/printer/printer_service \
+    && chmod 755 $STARTUPDIR/smartcard/smartcard_bridge \
+    && chmod 755 $STARTUPDIR/recorder/recorder_service \
     && chmod 755 $STARTUPDIR/generate_container_user \
-    && chmod +x $STARTUPDIR/jsmpeg/kasm_audio_out-linux \
+    && chmod +x $STARTUPDIR/jsmpeg/audio_out-linux \
     && rm -rf $STARTUPDIR/install \
-    && mkdir -p $STARTUPDIR/kasmrx/Downloads \
-    && chown 1000:1000 $STARTUPDIR/kasmrx/Downloads \
+    && mkdir -p $STARTUPDIR/sgcrx/Downloads \
+    && chown 3736:3736 $STARTUPDIR/sgcrx/Downloads \
     && chown -R root:root /usr/local/bin \
-    && chown 1000:root /var/run/pulse \
-    && rm -Rf /home/kasm-default-profile/.launchpadlib \
+    && chown 3736:root /var/run/pulse \
+    && rm -Rf /home/default-profile/.launchpadlib \
     && mkdir -p /run/pcscd \
-    && chown 1000:1000 /run/pcscd
+    && chown 3736:3736 /run/pcscd
 
 ### Cleanup job
 COPY ./src/ubuntu/install/cleanup $INST_SCRIPTS/cleanup/
@@ -196,9 +200,9 @@ FROM scratch
 COPY --from=base_layer / /
 
 ### Labels
-LABEL "org.opencontainers.image.authors"='Kasm Tech "info@kasmweb.com"'
-LABEL "com.kasmweb.image"="true"
-LABEL "com.kasmweb.gpu_acceleration_egl"="nvidia"
+LABEL "org.opencontainers.image.authors"='Oneill "oneill@sgc.ai"'
+LABEL "services.legit.image"="true"
+LABEL "services.legitweb.gpu_acceleration_egl"="nvidia"
 
 ### Environment config
 ARG DISTRO=ubuntu
@@ -214,10 +218,10 @@ ENV AUDIO_PORT=4901 \
     DISPLAY=:1 \
     DISTRO=$DISTRO \
     GOMP_SPINCOUNT=0 \
-    HOME=/home/kasm-user \
+    HOME=/home/ronon \
     INST_SCRIPTS=/dps/install \
-    KASMVNC_AUTO_RECOVER=true \
-    KASM_VNC_PATH=/usr/share/kasmvnc \
+    VNC_AUTO_RECOVER=true \
+    VNC_PATH=/usr/share/vnc \
     LANG=$LANG \
     LANGUAGE=$LANGUAGE \
     LC_ALL=$LC_ALL \
@@ -237,10 +241,10 @@ ENV AUDIO_PORT=4901 \
     VNCOPTIONS="-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -DLP_ClipDelay=0" \
     VNC_PORT=5901 \
     VNC_PORT=5901 \
-    VNC_PW=vncpassword \
+    VNC_PW=mr833fy \
     VNC_RESOLUTION=1280x1024 \
     VNC_RESOLUTION=1280x720 \
-    VNC_VIEW_ONLY_PW=vncviewonlypassword \
+    VNC_VIEW_ONLY_PW=mr833fywatches \
     TZ=$TZ
 
 ### Ports and user
@@ -249,7 +253,7 @@ EXPOSE $VNC_PORT \
        $UPLOAD_PORT \
        $AUDIO_PORT
 WORKDIR $HOME
-USER 1000
+USER 3736
 
 ENTRYPOINT ["/dps/sgc_default_profile.sh", "/dps/vnc_startup.sh", "/dps/startup.sh"]
 CMD ["--wait"]
